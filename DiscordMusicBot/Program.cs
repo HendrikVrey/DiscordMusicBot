@@ -1,12 +1,14 @@
-﻿using DSharpPlus.CommandsNext;
+﻿using DSharpPlus;
+using DSharpPlus.CommandsNext;
 using DSharpPlus.Interactivity;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Net;
-using DSharpPlus;
-using Newtonsoft.Json;
-using DiscordBot.Commands;
 using DSharpPlus.Interactivity.Extensions;
+using DiscordBot.Commands;
 using DiscordBot.Config;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace DiscordMusicBot
 {
@@ -18,9 +20,9 @@ namespace DiscordMusicBot
         static async Task Main(string[] args)
         {
             var jsonReader = new JSONReader();
-            await jsonReader.ReadJSON();
+            await jsonReader.ReadJSON().ConfigureAwait(false);
 
-            var discordConfig = new DiscordConfiguration()
+            var discordConfig = new DiscordConfiguration
             {
                 Intents = DiscordIntents.All,
                 Token = jsonReader.token,
@@ -32,7 +34,7 @@ namespace DiscordMusicBot
 
             Client.Ready += Client_Ready;
 
-            var commandsConfig = new CommandsNextConfiguration()
+            var commandsConfig = new CommandsNextConfiguration
             {
                 StringPrefixes = new string[] { jsonReader.prefix },
                 EnableMentionPrefix = true,
@@ -48,13 +50,8 @@ namespace DiscordMusicBot
             Commands = Client.UseCommandsNext(commandsConfig);
 
             Commands.RegisterCommands<MusicCommands>();
-
             Commands.RegisterCommands<UtilityCommands>();
 
-            //Commands.RegisterCommands<GameCommands>();
-
-
-            //Change this to your Lavalink Endpoint
             var endPoint = new ConnectionEndpoint
             {
                 Hostname = "lava-v3.ajieblogs.eu.org",
@@ -62,8 +59,7 @@ namespace DiscordMusicBot
                 Secured = true,
             };
 
-            //Change the password to your Lavalink Password
-            var LavaLinkConfig = new LavalinkConfiguration()
+            var LavaLinkConfig = new LavalinkConfiguration
             {
                 Password = "https://dsc.gg/ajidevserver",
                 RestEndpoint = endPoint,
@@ -72,9 +68,10 @@ namespace DiscordMusicBot
 
             var LavaLink = Client.UseLavalink();
 
-            await Client.ConnectAsync();
-            await LavaLink.ConnectAsync(LavaLinkConfig);
-            await Task.Delay(-1);
+            await Client.ConnectAsync().ConfigureAwait(false);
+            await LavaLink.ConnectAsync(LavaLinkConfig).ConfigureAwait(false);
+
+            await Task.Delay(-1).ConfigureAwait(false);
         }
 
         private static Task Client_Ready(DiscordClient sender, DSharpPlus.EventArgs.ReadyEventArgs args)

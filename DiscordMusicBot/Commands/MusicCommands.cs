@@ -1,8 +1,8 @@
-﻿using DSharpPlus;
-using DSharpPlus.CommandsNext;
+﻿using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
+using DSharpPlus;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,254 +13,229 @@ namespace DiscordBot.Commands
     {
         private static readonly ConcurrentQueue<LavalinkTrack> MusicQueue = new ConcurrentQueue<LavalinkTrack>();
         private static bool isPlaying = false;
-        private static readonly object queueLock = new object();
+        private LavalinkGuildConnection connection;
+        private DiscordChannel musicTextChannel;
 
         [Command("play")]
         public async Task PlayMusic(CommandContext ctx, [RemainingText] string query)
         {
-            if (!await ValidateVoiceChannel(ctx))
+            if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
                 return;
 
             var lavalinkInstance = ctx.Client.GetLavalink();
             var node = lavalinkInstance.ConnectedNodes.Values.First();
-            var conn = await ConnectToVoiceChannel(ctx, node);
 
-            if (conn == null)
-                return;
-
-            var searchQuery = await node.Rest.GetTracksAsync(query);
-            if (searchQuery.LoadResultType == LavalinkLoadResultType.NoMatches || searchQuery.LoadResultType == LavalinkLoadResultType.LoadFailed)
+            if (connection == null)
             {
-                await ctx.Channel.SendMessageAsync($"Failed to find music with query: {query}");
+                connection = await ConnectToVoiceChannel(ctx, node).ConfigureAwait(false);
+                if (connection == null)
+                    return;
+
+                musicTextChannel = ctx.Channel;
+
+                connection.PlaybackFinished += async (s, e) => await OnPlaybackFinished().ConfigureAwait(false);
+            }
+
+            var searchQuery = await node.Rest.GetTracksAsync(query).ConfigureAwait(false);
+            if (searchQuery.LoadResultType == LavalinkLoadResultType.NoMatches ||
+                searchQuery.LoadResultType == LavalinkLoadResultType.LoadFailed)
+            {
+                await ctx.Channel.SendMessageAsync($"Failed to find music with query: {query}").ConfigureAwait(false);
                 return;
             }
 
             var musicTrack = searchQuery.Tracks.First();
-            bool shouldStartPlaying = false;
+            MusicQueue.Enqueue(musicTrack);
 
-            lock (queueLock)
+            if (!isPlaying)
             {
-                MusicQueue.Enqueue(musicTrack);
-
-                if (!isPlaying)
-                {
-                    isPlaying = true;
-                    shouldStartPlaying = true;
-                }
-            }
-
-            if (shouldStartPlaying)
-            {
-                await PlayFromQueue(ctx, conn);
+                isPlaying = true;
+                await PlayFromQueue().ConfigureAwait(false);
             }
             else
             {
-                await ctx.Channel.SendMessageAsync($"Added to queue: {musicTrack.Title}");
+                await ctx.Channel.SendMessageAsync($"Added to queue: {musicTrack.Title}").ConfigureAwait(false);
             }
         }
 
         [Command("skip")]
         public async Task Skip(CommandContext ctx)
         {
-            if (!await ValidateVoiceChannel(ctx))
+            if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
                 return;
 
-            var lavalinkInstance = ctx.Client.GetLavalink();
-            var node = lavalinkInstance.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null || conn.CurrentState.CurrentTrack == null)
+            if (connection == null || connection.CurrentState.CurrentTrack == null)
             {
-                await ctx.Channel.SendMessageAsync("No track is currently playing.");
+                await ctx.Channel.SendMessageAsync("No track is currently playing.").ConfigureAwait(false);
                 return;
             }
 
-            await conn.StopAsync();
+            await connection.StopAsync().ConfigureAwait(false);
 
-            var skipEmbed = new DiscordEmbedBuilder()
+            var skipEmbed = new DiscordEmbedBuilder
             {
                 Color = DiscordColor.Orange,
                 Title = "Track Skipped!",
                 Description = "Skipped to the next track."
             };
 
-            await ctx.Channel.SendMessageAsync(embed: skipEmbed);
+            await ctx.Channel.SendMessageAsync(embed: skipEmbed).ConfigureAwait(false);
         }
 
         [Command("pause")]
         public async Task PauseMusic(CommandContext ctx)
         {
-            if (!await ValidateVoiceChannel(ctx))
+            if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
                 return;
 
-            var lavalinkInstance = ctx.Client.GetLavalink();
-            var node = lavalinkInstance.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null || conn.CurrentState.CurrentTrack == null)
+            if (connection == null || connection.CurrentState.CurrentTrack == null)
             {
-                await ctx.Channel.SendMessageAsync("No tracks are playing.");
+                await ctx.Channel.SendMessageAsync("No tracks are playing.").ConfigureAwait(false);
                 return;
             }
 
-            await conn.PauseAsync();
+            await connection.PauseAsync().ConfigureAwait(false);
 
-            var pausedEmbed = new DiscordEmbedBuilder()
+            var pausedEmbed = new DiscordEmbedBuilder
             {
                 Color = DiscordColor.Yellow,
                 Title = "Track Paused."
             };
 
-            await ctx.Channel.SendMessageAsync(embed: pausedEmbed);
+            await ctx.Channel.SendMessageAsync(embed: pausedEmbed).ConfigureAwait(false);
         }
 
         [Command("resume")]
         public async Task ResumeMusic(CommandContext ctx)
         {
-            if (!await ValidateVoiceChannel(ctx))
+            if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
                 return;
 
-            var lavalinkInstance = ctx.Client.GetLavalink();
-            var node = lavalinkInstance.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null || conn.CurrentState.CurrentTrack == null)
+            if (connection == null || connection.CurrentState.CurrentTrack == null)
             {
-                await ctx.Channel.SendMessageAsync("No tracks are playing.");
+                await ctx.Channel.SendMessageAsync("No tracks are playing.").ConfigureAwait(false);
                 return;
             }
 
-            await conn.ResumeAsync();
+            await connection.ResumeAsync().ConfigureAwait(false);
 
-            var resumedEmbed = new DiscordEmbedBuilder()
+            var resumedEmbed = new DiscordEmbedBuilder
             {
                 Color = DiscordColor.Green,
                 Title = "Resumed"
             };
 
-            await ctx.Channel.SendMessageAsync(embed: resumedEmbed);
+            await ctx.Channel.SendMessageAsync(embed: resumedEmbed).ConfigureAwait(false);
         }
 
         [Command("leave")]
         public async Task Leave(CommandContext ctx)
         {
-            if (!await ValidateVoiceChannel(ctx))
+            if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
                 return;
 
-            var lavalinkInstance = ctx.Client.GetLavalink();
-            var node = lavalinkInstance.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
-            if (conn == null)
+            if (connection == null)
             {
-                await ctx.Channel.SendMessageAsync("I am not connected to this voice channel.");
+                await ctx.Channel.SendMessageAsync("I am not connected to a voice channel.").ConfigureAwait(false);
                 return;
             }
 
-            await conn.StopAsync();
+            await connection.StopAsync().ConfigureAwait(false);
             ClearQueue();
             isPlaying = false;
 
-            await conn.DisconnectAsync();
+            await connection.DisconnectAsync().ConfigureAwait(false);
+            connection = null;
+            musicTextChannel = null;
 
-            var leaveEmbed = new DiscordEmbedBuilder()
+            var leaveEmbed = new DiscordEmbedBuilder
             {
                 Color = DiscordColor.Gray,
                 Title = "Disconnected",
                 Description = "The bot has disconnected from the voice channel."
             };
 
-            await ctx.Channel.SendMessageAsync(embed: leaveEmbed);
-        }
-
-        private async Task<bool> ValidateVoiceChannel(CommandContext ctx)
-        {
-            var userVC = ctx.Member.VoiceState.Channel;
-            if (userVC == null)
-            {
-                await ctx.Channel.SendMessageAsync("Please enter a Voice Channel.");
-                return false;
-            }
-
-            if (!ctx.Client.GetLavalink().ConnectedNodes.Any())
-            {
-                await ctx.Channel.SendMessageAsync("Connection is not Established.");
-                return false;
-            }
-
-            if (userVC.Type != ChannelType.Voice)
-            {
-                await ctx.Channel.SendMessageAsync("Please enter a valid Voice Channel.");
-                return false;
-            }
-
-            return true;
+            await ctx.Channel.SendMessageAsync(embed: leaveEmbed).ConfigureAwait(false);
         }
 
         private async Task<LavalinkGuildConnection> ConnectToVoiceChannel(CommandContext ctx, LavalinkNodeConnection node)
         {
             var userVC = ctx.Member.VoiceState.Channel;
-            await node.ConnectAsync(userVC);
+            await node.ConnectAsync(userVC).ConfigureAwait(false);
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
-
             if (conn == null)
             {
-                await ctx.Channel.SendMessageAsync("Lavalink Failed to connect.");
+                await ctx.Channel.SendMessageAsync("Lavalink failed to connect.").ConfigureAwait(false);
                 return null;
             }
-
             return conn;
         }
 
-        private async Task PlayFromQueue(CommandContext ctx, LavalinkGuildConnection conn)
+        private async Task PlayFromQueue()
         {
-            LavalinkTrack musicTrack;
-            lock (queueLock)
+            if (MusicQueue.TryDequeue(out var musicTrack))
             {
-                if (!MusicQueue.TryDequeue(out musicTrack))
+                await connection.PlayAsync(musicTrack).ConfigureAwait(false);
+                string musicDescription = $"Now Playing: {musicTrack.Title} \n" +
+                                          $"Author: {musicTrack.Author} \n" +
+                                          $"URL: {musicTrack.Uri}";
+
+                var nowPlayingEmbed = new DiscordEmbedBuilder
                 {
-                    isPlaying = false;
-                    return;
-                }
+                    Color = DiscordColor.Purple,
+                    Title = "Now playing",
+                    Description = musicDescription
+                };
+
+                await musicTextChannel.SendMessageAsync(embed: nowPlayingEmbed).ConfigureAwait(false);
             }
-
-            await conn.PlayAsync(musicTrack);
-            string musicDescription = $"Now Playing: {musicTrack.Title} \n" +
-                                      $"Author: {musicTrack.Author} \n" +
-                                      $"URL: {musicTrack.Uri}";
-
-            var nowPlayingEmbed = new DiscordEmbedBuilder()
+            else
             {
-                Color = DiscordColor.Purple,
-                Title = "Now playing",
-                Description = musicDescription
-            };
-
-            await ctx.Channel.SendMessageAsync(embed: nowPlayingEmbed);
-
-            conn.PlaybackFinished += async (s, e) => await OnPlaybackFinished(ctx, conn);
+                isPlaying = false;
+            }
         }
 
-        private async Task OnPlaybackFinished(CommandContext ctx, LavalinkGuildConnection conn)
+        private async Task OnPlaybackFinished()
         {
-            lock (queueLock)
-            {
-                if (!MusicQueue.Any())
-                {
-                    isPlaying = false;
-                    return;
-                }
-            }
+            if (connection == null) return;
 
-            await PlayFromQueue(ctx, conn);
+            if (!MusicQueue.IsEmpty)
+            {
+                await PlayFromQueue().ConfigureAwait(false);
+            }
+            else
+            {
+                isPlaying = false;
+            }
         }
 
         private void ClearQueue()
         {
-            lock (queueLock)
+            while (MusicQueue.TryDequeue(out _)) { }
+        }
+
+        private async Task<bool> ValidateVoiceChannel(CommandContext ctx)
+        {
+            var userVC = ctx.Member?.VoiceState?.Channel;
+            if (userVC == null)
             {
-                while (MusicQueue.TryDequeue(out _)) { }
+                await ctx.Channel.SendMessageAsync("Please join a voice channel first.").ConfigureAwait(false);
+                return false;
             }
+
+            if (!ctx.Client.GetLavalink().ConnectedNodes.Any())
+            {
+                await ctx.Channel.SendMessageAsync("Connection to Lavalink is not established.").ConfigureAwait(false);
+                return false;
+            }
+
+            if (userVC.Type != ChannelType.Voice)
+            {
+                await ctx.Channel.SendMessageAsync("Please enter a valid Voice Channel.").ConfigureAwait(false);
+                return false;
+            }
+
+            return true;
         }
     }
 }

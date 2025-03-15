@@ -1,14 +1,11 @@
-﻿using DSharpPlus;
+﻿using DiscordBot.Commands;
+using DiscordBot.Config;
+using DSharpPlus;
 using DSharpPlus.CommandsNext;
 using DSharpPlus.Interactivity;
+using DSharpPlus.Interactivity.Extensions;
 using DSharpPlus.Lavalink;
 using DSharpPlus.Net;
-using DSharpPlus.Interactivity.Extensions;
-using DiscordBot.Commands;
-using DiscordBot.Config;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace DiscordMusicBot
 {

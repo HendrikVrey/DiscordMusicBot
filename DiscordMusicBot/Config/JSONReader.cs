@@ -1,6 +1,4 @@
 ﻿using Newtonsoft.Json;
-using System.IO;
-using System.Threading.Tasks;
 
 namespace DiscordBot.Config
 {

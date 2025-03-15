@@ -2,14 +2,8 @@
 using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
-using DSharpPlus.Lavalink;
 using DSharpPlus.Interactivity.Extensions;
-using DSharpPlus.Interactivity;
-using System;
-using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Collections.Generic;
+using DSharpPlus.Lavalink;
 
 namespace DiscordBot.Commands
 {
@@ -33,7 +27,7 @@ namespace DiscordBot.Commands
             .AddField("`!resume`", "Resumes the playback of a paused track.")
             .AddField("`!leave`", "Disconnects the bot from the voice channel.")
             .AddField("`!clear`", "Deletes a specified amount of messages. Not older than 2 weeks. Example: !clear 100 <Deletes previous 100 messages in selected channel>.")
-            .AddField("`poll`", "Creates a poll. Use `|` to separate options. Example: !poll Game | Dota2 | CS2 <Creates a poll with the caption Game for Guild Members to select between Dota2 or CS2 >.");
+            .AddField("`!poll`", "Creates a poll. Use `|` to separate options. Example: !poll Game | Dota2 | CS2 <Creates a poll with the caption Game for Guild Members to select between Dota2 or CS2 >.");
 
             await ctx.Channel.SendMessageAsync(embed: helpEmbed);
         }

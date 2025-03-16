@@ -23,7 +23,7 @@ namespace DiscordBot.Commands
             .AddField("`!pause`", "Pauses the currently playing track.")
             .AddField("`!resume`", "Resumes the playback of a paused track.")
             .AddField("`!leave`", "Disconnects the bot from the voice channel.")
-            .AddField("`!clear`", "Deletes a specified amount of messages. If you have the permissions to delete messages on the server. Not older than 2 weeks. Example: !clear 100 <Deletes previous 100 messages in selected channel>.")
+            //.AddField("`!clear`", "Deletes a specified amount of messages. If you have the permissions to delete messages on the server. Not older than 2 weeks. Example: !clear 100 <Deletes previous 100 messages in selected channel>.")
             .AddField("`!poll`", "Creates a poll. Use `|` to separate options. Example: !poll Game | Dota2 | CS2 <Creates a poll with the caption Game for Guild Members to select between Dota2 or CS2 >.");
 
             await ctx.Channel.SendMessageAsync(embed: helpEmbed);
@@ -43,63 +43,63 @@ namespace DiscordBot.Commands
             await ctx.RespondAsync($"Connected to `{userVC.Name}`!");          
         }
 
-        [Command("clear")]
-        [RequirePermissions(Permissions.ManageMessages)]
-        public async Task ClearCommand(CommandContext ctx, [Description("Number of messages to delete.")] int count)
-        {
-            try
-            {
-                if (count < 1 || count > 1000)
-                {
-                    await ctx.RespondAsync("Please specify a number between **1** and **1000**");
-                    return;
-                }
+        //[Command("clear")]
+        //[RequirePermissions(Permissions.ManageMessages)]
+        //public async Task ClearCommand(CommandContext ctx, [Description("Number of messages to delete.")] int count)
+        //{
+        //    try
+        //    {
+        //        if (count < 1 || count > 1000)
+        //        {
+        //            await ctx.RespondAsync("Please specify a number between **1** and **1000**");
+        //            return;
+        //        }
 
-                await ctx.Message.DeleteAsync().ConfigureAwait(false);
+        //        await ctx.Message.DeleteAsync().ConfigureAwait(false);
 
-                int totalDeleted = 0;
-                ulong? lastMessageId = ctx.Message.Id;
+        //        int totalDeleted = 0;
+        //        ulong? lastMessageId = ctx.Message.Id;
 
-                while (totalDeleted < count)
-                {
-                    int remaining = count - totalDeleted;
-                    int chunkSize = Math.Min(remaining, 100);
+        //        while (totalDeleted < count)
+        //        {
+        //            int remaining = count - totalDeleted;
+        //            int chunkSize = Math.Min(remaining, 100);
 
-                    var messages = await ctx.Channel.GetMessagesBeforeAsync(lastMessageId.Value, chunkSize)
-                        .ConfigureAwait(false);
+        //            var messages = await ctx.Channel.GetMessagesBeforeAsync(lastMessageId.Value, chunkSize)
+        //                .ConfigureAwait(false);
 
-                    if (messages.Count == 0) break;
+        //            if (messages.Count == 0) break;
 
-                    var validMessages = messages
-                        .Where(m => DateTimeOffset.UtcNow - m.CreationTimestamp < TimeSpan.FromDays(14))
-                        .ToList();
+        //            var validMessages = messages
+        //                .Where(m => DateTimeOffset.UtcNow - m.CreationTimestamp < TimeSpan.FromDays(14))
+        //                .ToList();
 
-                    if (validMessages.Count == 0) break;
+        //            if (validMessages.Count == 0) break;
 
-                    if (validMessages.Count > 1)
-                    {
-                        await ctx.Channel.DeleteMessagesAsync(validMessages).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await validMessages[0].DeleteAsync().ConfigureAwait(false);
-                    }
+        //            if (validMessages.Count > 1)
+        //            {
+        //                await ctx.Channel.DeleteMessagesAsync(validMessages).ConfigureAwait(false);
+        //            }
+        //            else
+        //            {
+        //                await validMessages[0].DeleteAsync().ConfigureAwait(false);
+        //            }
 
-                    totalDeleted += validMessages.Count;
-                    lastMessageId = validMessages.Last().Id;
-                }
+        //            totalDeleted += validMessages.Count;
+        //            lastMessageId = validMessages.Last().Id;
+        //        }
 
-                var confirmation = await ctx.Channel.SendMessageAsync($"Deleted **{totalDeleted}** messages")
-                    .ConfigureAwait(false);
-                await Task.Delay(3000).ConfigureAwait(false);
-                await confirmation.DeleteAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Clear command failed: {ex}");
-                await ctx.RespondAsync($"❌ Error clearing messages: {ex.Message}");
-            }
-        }
+        //        var confirmation = await ctx.Channel.SendMessageAsync($"Deleted **{totalDeleted}** messages")
+        //            .ConfigureAwait(false);
+        //        await Task.Delay(3000).ConfigureAwait(false);
+        //        await confirmation.DeleteAsync().ConfigureAwait(false);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Console.WriteLine($"Clear command failed: {ex}");
+        //        await ctx.RespondAsync($"Error clearing messages: {ex.Message}");
+        //    }
+        //}
 
         [Command("poll")]
         public async Task PollCommand(CommandContext ctx, [RemainingText] string questionWithOptions)

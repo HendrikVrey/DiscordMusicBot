@@ -12,175 +12,172 @@ namespace DiscordBot.Commands
         [Command("help")]
         public async Task Help(CommandContext ctx)
         {
-            var helpEmbed = new DiscordEmbedBuilder
+            try
             {
-                Title = "Music Bot Commands",
-                Color = DiscordColor.CornflowerBlue,
-                Description = "List of available commands for the bot"
-            }
-            .AddField("`!play <query>`", "Searches for the specified song and plays it (Only Youtube is supported for now). If other tracks are already queued, it adds the song to the queue.")
-            .AddField("`!skip`", "Skips the currently playing track and moves to the next one in the queue.")
-            .AddField("`!pause`", "Pauses the currently playing track.")
-            .AddField("`!resume`", "Resumes the playback of a paused track.")
-            .AddField("`!leave`", "Disconnects the bot from the voice channel.")
-            //.AddField("`!clear`", "Deletes a specified amount of messages. If you have the permissions to delete messages on the server. Not older than 2 weeks. Example: !clear 100 <Deletes previous 100 messages in selected channel>.")
-            .AddField("`!poll`", "Creates a poll. Use `|` to separate options. Example: !poll Game | Dota2 | CS2 <Creates a poll with the caption Game for Guild Members to select between Dota2 or CS2 >.");
+                var helpEmbed = new DiscordEmbedBuilder
+                {
+                    Title = "Music Bot Commands",
+                    Color = DiscordColor.CornflowerBlue,
+                    Description = "List of available commands for the bot"
+                }
+                .AddField("`!play <query>`", "Searches for the specified song and plays it. If other tracks are already queued, it adds the song to the queue.")
+                .AddField("`!skip`", "Skips the currently playing track and moves to the next one in the queue.")
+                .AddField("`!pause`", "Pauses the currently playing track.")
+                .AddField("`!resume`", "Resumes the playback of a paused track.")
+                .AddField("`!leave`", "Disconnects the bot from the voice channel.")
+                .AddField("`!poll`", "Creates a poll. Use `|` to separate options. Example: !poll Game | Dota2 | CS2");
 
-            await ctx.Channel.SendMessageAsync(embed: helpEmbed);
+                await ctx.Channel.SendMessageAsync(embed: helpEmbed).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in Help command: {ex.Message}");
+                await ctx.RespondAsync("An error occurred while displaying help information.").ConfigureAwait(false);
+            }
         }
 
         [Command("join")]
         public async Task JoinCommand(CommandContext ctx)
         {
-            if (!await ValidateVoiceChannel(ctx))
-                return;
+            try
+            {
+                if (!await ValidateVoiceChannel(ctx).ConfigureAwait(false))
+                    return;
 
-            var userVC = ctx.Member.VoiceState.Channel;
-            var lavalinkInstance = ctx.Client.GetLavalink();
-            var node = lavalinkInstance.ConnectedNodes.Values.First();
-            await node.ConnectAsync(userVC);
+                var userVC = ctx.Member.VoiceState.Channel;
+                var lavalinkInstance = ctx.Client.GetLavalink();
 
-            await ctx.RespondAsync($"Connected to `{userVC.Name}`!");          
+                if (lavalinkInstance == null || !lavalinkInstance.ConnectedNodes.Any())
+                {
+                    await ctx.RespondAsync("Lavalink connection is not established.").ConfigureAwait(false);
+                    return;
+                }
+
+                var node = lavalinkInstance.ConnectedNodes.Values.FirstOrDefault();
+                if (node == null)
+                {
+                    await ctx.RespondAsync("No Lavalink node found.").ConfigureAwait(false);
+                    return;
+                }
+
+                await node.ConnectAsync(userVC).ConfigureAwait(false);
+                await ctx.RespondAsync($"Connected to `{userVC.Name}`!").ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in JoinCommand: {ex.Message}");
+                await ctx.RespondAsync("An error occurred while trying to join the voice channel.").ConfigureAwait(false);
+            }
         }
-
-        //[Command("clear")]
-        //[RequirePermissions(Permissions.ManageMessages)]
-        //public async Task ClearCommand(CommandContext ctx, [Description("Number of messages to delete.")] int count)
-        //{
-        //    try
-        //    {
-        //        if (count < 1 || count > 1000)
-        //        {
-        //            await ctx.RespondAsync("Please specify a number between **1** and **1000**");
-        //            return;
-        //        }
-
-        //        await ctx.Message.DeleteAsync().ConfigureAwait(false);
-
-        //        int totalDeleted = 0;
-        //        ulong? lastMessageId = ctx.Message.Id;
-
-        //        while (totalDeleted < count)
-        //        {
-        //            int remaining = count - totalDeleted;
-        //            int chunkSize = Math.Min(remaining, 100);
-
-        //            var messages = await ctx.Channel.GetMessagesBeforeAsync(lastMessageId.Value, chunkSize)
-        //                .ConfigureAwait(false);
-
-        //            if (messages.Count == 0) break;
-
-        //            var validMessages = messages
-        //                .Where(m => DateTimeOffset.UtcNow - m.CreationTimestamp < TimeSpan.FromDays(14))
-        //                .ToList();
-
-        //            if (validMessages.Count == 0) break;
-
-        //            if (validMessages.Count > 1)
-        //            {
-        //                await ctx.Channel.DeleteMessagesAsync(validMessages).ConfigureAwait(false);
-        //            }
-        //            else
-        //            {
-        //                await validMessages[0].DeleteAsync().ConfigureAwait(false);
-        //            }
-
-        //            totalDeleted += validMessages.Count;
-        //            lastMessageId = validMessages.Last().Id;
-        //        }
-
-        //        var confirmation = await ctx.Channel.SendMessageAsync($"Deleted **{totalDeleted}** messages")
-        //            .ConfigureAwait(false);
-        //        await Task.Delay(3000).ConfigureAwait(false);
-        //        await confirmation.DeleteAsync().ConfigureAwait(false);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine($"Clear command failed: {ex}");
-        //        await ctx.RespondAsync($"Error clearing messages: {ex.Message}");
-        //    }
-        //}
 
         [Command("poll")]
         public async Task PollCommand(CommandContext ctx, [RemainingText] string questionWithOptions)
         {
-            var parts = questionWithOptions.Split('|');
-            if (parts.Length < 2)
+            try
             {
-                await ctx.RespondAsync("Please provide a question and at least two options separated by `|`.");
-                return;
-            }
-
-            var question = parts[0].Trim();
-            var options = parts.Skip(1).Select(option => option.Trim()).ToArray();
-
-            if (options.Length > 10)
-            {
-                await ctx.RespondAsync("Please provide no more than 10 options.");
-                return;
-            }
-
-            var votes = new int[options.Length];
-            var userVotes = new Dictionary<ulong, int>();
-
-            var embed = new DiscordEmbedBuilder
-            {
-                Title = "Poll",
-                Description = GetPollDescription(question, options, votes),
-                Color = DiscordColor.Azure
-            };
-
-            var buttons = new List<DiscordButtonComponent>();
-            for (int i = 0; i < options.Length; i++)
-            {
-                buttons.Add(new DiscordButtonComponent(ButtonStyle.Primary, $"poll_option_{i}", options[i]));
-            }
-
-            var pollMessage = await ctx.Channel.SendMessageAsync(new DiscordMessageBuilder()
-                .WithEmbed(embed)
-                .AddComponents(buttons));
-
-            var interactivity = ctx.Client.GetInteractivity();
-            if (interactivity == null)
-            {
-                await ctx.RespondAsync("Interactivity is not enabled. Please ensure it is configured correctly.");
-                return;
-            }
-
-            while (true)
-            {
-                var result = await interactivity.WaitForButtonAsync(pollMessage, TimeSpan.FromMinutes(5));
-                if (result.TimedOut)
+                var parts = questionWithOptions.Split('|');
+                if (parts.Length < 2)
                 {
-                    await pollMessage.ModifyAsync(new DiscordMessageBuilder()
-                        .WithEmbed(embed.WithDescription("Poll timed out."))
-                        .AddComponents());
-                    break;
+                    await ctx.RespondAsync("Please provide a question and at least two options separated by `|`.").ConfigureAwait(false);
+                    return;
                 }
-                else
-                {
-                    var userId = result.Result.User.Id;
-                    var optionIndex = int.Parse(result.Result.Id.Split('_').Last());
 
-                    if (userVotes.ContainsKey(userId))
+                var question = parts[0].Trim();
+                var options = parts.Skip(1).Select(option => option.Trim()).Where(o => !string.IsNullOrEmpty(o)).ToArray();
+
+                if (options.Length < 2)
+                {
+                    await ctx.RespondAsync("Please provide at least two valid options.").ConfigureAwait(false);
+                    return;
+                }
+
+                if (options.Length > 10)
+                {
+                    await ctx.RespondAsync("Please provide no more than 10 options.").ConfigureAwait(false);
+                    return;
+                }
+
+                var votes = new int[options.Length];
+                var userVotes = new Dictionary<ulong, int>();
+
+                var embed = new DiscordEmbedBuilder
+                {
+                    Title = "Poll",
+                    Description = GetPollDescription(question, options, votes),
+                    Color = DiscordColor.Azure
+                };
+
+                var buttons = new List<DiscordButtonComponent>();
+                for (int i = 0; i < options.Length; i++)
+                {
+                    buttons.Add(new DiscordButtonComponent(ButtonStyle.Primary, $"poll_option_{i}", options[i]));
+                }
+
+                var pollMessage = await ctx.Channel.SendMessageAsync(new DiscordMessageBuilder()
+                    .WithEmbed(embed)
+                    .AddComponents(buttons)).ConfigureAwait(false);
+
+                var interactivity = ctx.Client.GetInteractivity();
+                if (interactivity == null)
+                {
+                    await ctx.RespondAsync("Interactivity is not enabled. Please ensure it is configured correctly.").ConfigureAwait(false);
+                    return;
+                }
+
+                while (true)
+                {
+                    var result = await interactivity.WaitForButtonAsync(pollMessage, TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+                    if (result.TimedOut)
                     {
-                        await result.Result.Interaction.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DiscordInteractionResponseBuilder()
-                            .WithContent("You have already voted!")
-                            .AsEphemeral(true));
+                        await pollMessage.ModifyAsync(new DiscordMessageBuilder()
+                            .WithEmbed(embed.WithDescription("Poll timed out."))
+                            .AddComponents()).ConfigureAwait(false);
+                        break;
                     }
                     else
                     {
-                        userVotes[userId] = optionIndex;
-                        votes[optionIndex]++;
-                        embed.Description = GetPollDescription(question, options, votes);
+                        try
+                        {
+                            var userId = result.Result.User.Id;
+                            var idParts = result.Result.Id.Split('_');
+                            if (idParts.Length == 0 || !int.TryParse(idParts.Last(), out int optionIndex))
+                            {
+                                await result.Result.Interaction.CreateResponseAsync(
+                                    InteractionResponseType.ChannelMessageWithSource,
+                                    new DiscordInteractionResponseBuilder().WithContent("Invalid vote option.").AsEphemeral(true)).ConfigureAwait(false);
+                                continue;
+                            }
 
-                        await pollMessage.ModifyAsync(new DiscordMessageBuilder()
-                            .WithEmbed(embed)
-                            .AddComponents(buttons));
+                            if (userVotes.ContainsKey(userId))
+                            {
+                                await result.Result.Interaction.CreateResponseAsync(
+                                    InteractionResponseType.ChannelMessageWithSource,
+                                    new DiscordInteractionResponseBuilder().WithContent("You have already voted!").AsEphemeral(true)).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                userVotes[userId] = optionIndex;
+                                votes[optionIndex]++;
+                                embed.Description = GetPollDescription(question, options, votes);
 
-                        await result.Result.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage);
+                                await pollMessage.ModifyAsync(new DiscordMessageBuilder()
+                                    .WithEmbed(embed)
+                                    .AddComponents(buttons)).ConfigureAwait(false);
+
+                                await result.Result.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage).ConfigureAwait(false);
+                            }
+                        }
+                        catch (Exception innerEx)
+                        {
+                            Console.WriteLine($"Error during poll voting: {innerEx.Message}");
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in PollCommand: {ex.Message}");
+                await ctx.RespondAsync("An error occurred while creating the poll.").ConfigureAwait(false);
             }
         }
 
@@ -189,7 +186,7 @@ namespace DiscordBot.Commands
             var description = $"**{question}**\n\n";
             for (int i = 0; i < options.Length; i++)
             {
-                description += $"{options[i]}: {votes[i]} votes\n";
+                description += $"{options[i]}: {votes[i]} vote{(votes[i] == 1 ? "" : "s")}\n";
             }
             return description;
         }
@@ -198,28 +195,34 @@ namespace DiscordBot.Commands
         {
             try
             {
-                var userVC = ctx.Member.VoiceState.Channel;
-
-                if (!ctx.Client.GetLavalink().ConnectedNodes.Any())
+                var userVC = ctx.Member?.VoiceState?.Channel;
+                if (userVC == null)
                 {
-                    await ctx.RespondAsync("Connection is not established.");
+                    await ctx.RespondAsync("Please join a voice channel first.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var lavalink = ctx.Client.GetLavalink();
+                if (lavalink == null || !lavalink.ConnectedNodes.Any())
+                {
+                    await ctx.RespondAsync("Lavalink connection is not established.").ConfigureAwait(false);
                     return false;
                 }
 
                 if (userVC.Type != ChannelType.Voice)
                 {
-                    await ctx.RespondAsync("Please enter a valid Voice Channel.");
+                    await ctx.RespondAsync("Please enter a valid Voice Channel.").ConfigureAwait(false);
                     return false;
                 }
 
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
-                await ctx.RespondAsync("Please enter a voice channel first.");
+                Console.WriteLine($"Error in ValidateVoiceChannel: {ex.Message}");
+                await ctx.RespondAsync("An error occurred while validating the voice channel.").ConfigureAwait(false);
                 return false;
             }
-
         }
     }
 }
